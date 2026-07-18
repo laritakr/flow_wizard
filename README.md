@@ -81,14 +81,14 @@ condition name); the **stadium** node is a terminal step:
 
 ```mermaid
 flowchart TD
-  start[start]
-  select_parent{{select_parent<br/>(if not_adding)}}
-  known_type[known_type]
-  files[files]
-  details[details]
-  file_meta{{file_meta<br/>(if not_has_files)}}
-  review[review]
-  done([done])
+  start["start"]
+  select_parent{{"select_parent<br/>(if not_adding)"}}
+  known_type["known_type"]
+  files["files"]
+  details["details"]
+  file_meta{{"file_meta<br/>(if not_has_files)"}}
+  review["review"]
+  done(["done"])
   start --> select_parent
   select_parent --> known_type
   known_type --> files

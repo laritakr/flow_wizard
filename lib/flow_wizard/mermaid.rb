@@ -36,9 +36,11 @@ module FlowWizard
       flow.steps.map { |step| "  #{node(step)}" }
     end
 
-    # A step's node declaration, shaped by terminal/conditional.
+    # A step's node declaration, shaped by terminal/conditional. The label is always
+    # quoted so text with parens or <br/> (e.g. "(if not_adding)") parses — Mermaid
+    # only treats bracketed text literally when it is wrapped in double quotes.
     def node(step)
-      label = node_label(step)
+      label = %("#{node_label(step)}")
       if step.terminal?
         "#{id(step.name)}([#{label}])" # stadium = terminal endpoint
       elsif step.skip_condition_name
