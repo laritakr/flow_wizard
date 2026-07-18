@@ -1,6 +1,7 @@
 AllCops:
   TargetRubyVersion: 2.7
   NewCops: enable
+  SuggestExtensions: false
 
 # The gem is written with double-quoted strings throughout.
 Style/StringLiterals:
@@ -32,3 +33,9 @@ Metrics/PerceivedComplexity:
 Metrics/BlockLength:
   Exclude:
     - "spec/**/*"
+
+# Development dependencies are declared in the gemspec (rspec, rubocop, rake), which
+# this cop's default discourages in favor of the Gemfile. Keeping them in the gemspec
+# is a deliberate convention here, so allow it.
+Gemspec/DevelopmentDependencies:
+  EnforcedStyle: gemspec

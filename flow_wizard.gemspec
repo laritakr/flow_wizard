@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.name = "flow_wizard"
   spec.version = FlowWizard::VERSION
   spec.authors = ["LaRita Robinson"]
-  spec.email       = ["laritakr@gmail.com"]
+  spec.email = ["laritakr@gmail.com"]
   spec.summary = "Declarative, self-documenting multi-step flows as swappable data."
   spec.description = <<~DESC
     A dependency-free, controller-agnostic engine for multi-step wizard flows. A flow
@@ -23,8 +23,10 @@ Gem::Specification.new do |spec|
   spec.metadata["source_code_uri"] = spec.homepage
   spec.metadata["rubygems_mfa_required"] = "true"
 
-  spec.files = Dir["lib/**/*.rb", "README.md", "LICENSE"]
+  spec.files = Dir["lib/**/*.rb", "README.md", "LICENSE", "docs/**/*"]
   spec.require_paths = ["lib"]
 
+  spec.add_development_dependency "rake", "~> 13.0"
   spec.add_development_dependency "rspec", "~> 3.0"
+  spec.add_development_dependency "rubocop", "~> 1.88"
 end

@@ -89,7 +89,7 @@ module FlowWizard
     def initialize(flow)
       @flow = flow
       @branch_by_step = index_branch_steps
-      @decision_by_from = flow.decisions.each_with_object({}) { |d, map| map[d[:from]] = d }
+      @decision_by_from = flow.decisions.to_h { |d| [d[:from], d] }
     end
 
     def render(direction: "TD")
