@@ -1,0 +1,34 @@
+AllCops:
+  TargetRubyVersion: 2.7
+  NewCops: enable
+
+# The gem is written with double-quoted strings throughout.
+Style/StringLiterals:
+  EnforcedStyle: double_quotes
+
+Style/StringLiteralsInInterpolation:
+  EnforcedStyle: double_quotes
+
+# Documentation lives in the README and rich class comments; a redundant
+# top-of-class doc comment cop adds noise here.
+Style/Documentation:
+  Enabled: false
+
+# The builder's `step` is a DSL surface: its keyword params ARE the API, and the
+# navigator/rail methods are cohesive but longer than the default thresholds.
+Metrics/MethodLength:
+  Max: 20
+Metrics/AbcSize:
+  Max: 25
+Metrics/ParameterLists:
+  Max: 12
+  CountKeywordArgs: false
+Metrics/CyclomaticComplexity:
+  Max: 10
+Metrics/PerceivedComplexity:
+  Max: 10
+
+# Spec files: example/describe blocks and the Mermaid snapshot are naturally long.
+Metrics/BlockLength:
+  Exclude:
+    - "spec/**/*"
