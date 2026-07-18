@@ -5,10 +5,13 @@ the session, and the views. This page shows the glue: the `State` and `Config`
 subclasses you define, the controller loop that drives the wizard, and how the
 progress rail reaches a view.
 
-> **The gem is framework-agnostic** — it never touches a session, a controller, or a
-> request. The Rails controller below is *illustration*, not a dependency: the same
-> five moves (load state, check detour, apply params, decide, advance) work in any
-> request/response stack. Nothing in the gem requires Rails.
+> **It's a Ruby gem, but not a Rails one.** `flow_wizard` runs in any **Ruby**
+> application — Rails, Sinatra, Hanami, a plain script — because it never touches a
+> session, a controller, or a request, and depends on no web framework. The Rails
+> controller below is *illustration*, not a dependency: the same five moves (load
+> state, check detour, apply params, decide, advance) work in any Ruby request/response
+> stack. (It is Ruby, though — a non-Ruby frontend would call it through your Ruby
+> backend, not use the gem directly.)
 
 The flow itself — `Flow.build { ... }` — is covered in the
 [README](../README.md#define-a-flow) and [DIAGRAMS.md](DIAGRAMS.md). This page assumes
@@ -179,27 +182,80 @@ optional `messages:` list for field-level errors your view can display.
 
 ## 5. The progress rail
 
-`flow.rail(state, config)` returns the phases to show for the current state, already
-collapsed and ordered — several steps can map to one phase, and the rail's order is its
-own (set by `rail_order`), independent of the walk. Each entry is
-`{ key:, icon:, label_key: }`:
+The **rail** is the progress strip the user sees — the stepper across the top of the
+wizard (defined, with an illustration, in
+[AUTHORING-FLOWS.md § The rail](AUTHORING-FLOWS.md#the-rail--the-progress-indicator)). This
+section covers rendering it.
+
+Two methods give you the data for that strip. **`flow.rail(state, config)`** returns
+the raw phases — `{ key:, icon:, label_key: }` each, already collapsed and ordered
+(several steps can map to one phase; the order is `rail_order`'s, independent of the
+walk). **`flow.rail_view(state, config, current_step:)`** returns the same phases
+enriched for rendering — each also carries a `:position` (1-based) and a `:status` of
+`:done` / `:current` / `:upcoming`, worked out from the step the user is on. Use
+`rail_view` so your template doesn't recompute where the user sits:
 
 ```erb
-<%# @rail = @flow.rail(@state, @config) %>
+<%# @rail = @flow.rail_view(@state, @config, current_step: params[:step]) %>
 <ol class="wizard-rail">
   <% @rail.each do |phase| %>
-    <li class="<%= "is-current" if phase[:key] == @step.rail_key %>">
-      <i class="<%= phase[:icon] %>"></i>
-      <%= t(phase[:label_key]) %>
+    <li class="rail-step is-<%= phase[:status] %>">
+      <span class="rail-marker"><i class="<%= phase[:icon] %>"></i></span>
+      <span class="rail-label"><%= t(phase[:label_key]) %></span>
     </li>
   <% end %>
 </ol>
+```
+
+The `:status` class (`is-done` / `is-current` / `is-upcoming`) is the hook your CSS
+styles — filled vs. outlined circles, an active label, a dimmed upcoming step, as in
+the image above. `flow_wizard` computes the *state*; the look is entirely yours (the
+gem ships no CSS or markup — it stays dependency-free). A minimal starting point:
+
+```css
+.wizard-rail { display: flex; gap: 1rem; list-style: none; }
+.rail-step .rail-marker { border: 2px solid #ccc; border-radius: 50%; padding: .5rem; }
+.rail-step.is-current .rail-marker { background: #1b4f72; color: #fff; border-color: #1b4f72; }
+.rail-step.is-done    .rail-marker { border-color: #1b4f72; }
+.rail-step.is-upcoming { opacity: .55; }
+.rail-step.is-current .rail-label { font-weight: 600; }
 ```
 
 A phase appears only when a visible step maps to it, so the rail shrinks and grows with
 the path the depositor is on — the file-metadata phase, for instance, shows up only
 once files exist. The `icon` and `label_key` come from whichever visible step in the
 group defines them, so collapsed steps need not all carry display metadata.
+
+## Validating a flow at boot
+
+Because a flow is data, a mistyped condition or step name fails silently at runtime.
+`Flow#validate!` turns that into a loud failure at a time of your choosing — it raises
+`FlowWizard::Flow::InvalidFlow` listing every problem, or returns the flow if it's
+sound (so it chains). Two good places to call it:
+
+```ruby
+# In your Config, so a broken flow fails fast at boot rather than mid-request:
+class DepositConfig < FlowWizard::Config
+  private
+
+  def default_flow
+    DepositFlow.build.validate!
+  end
+end
+```
+
+```ruby
+# Or as a test, so a typo is caught in CI without booting the app:
+RSpec.describe DepositFlow do
+  it "is structurally sound" do
+    expect(described_class.build.valid?).to be(true)
+  end
+end
+```
+
+`validate` (non-raising) returns the list of problems if you'd rather log or display
+them. What it checks is detailed in
+[AUTHORING-FLOWS.md](AUTHORING-FLOWS.md#validating-a-flow).
 
 ## The whole loop, in one breath
 

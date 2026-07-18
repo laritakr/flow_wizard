@@ -28,9 +28,8 @@ prerequisite guard, a progress rail, or a second consumer.
 
 ## How is this different from existing gems?
 
-We surveyed the Ruby/Rails ecosystem before writing this. Existing tools split into
-two camps, and neither does what `flow_wizard` does — because the requirement that
-matters most eliminates almost everything:
+Existing tools split into two camps, and neither does what `flow_wizard` does —
+because the requirement that matters most eliminates almost everything:
 
 > **Steps are declarative runtime *data*.** A downstream app reorders, inserts, or
 > removes steps by assigning `config.flow = Flow.new([...])` — no controller
@@ -69,8 +68,8 @@ requests. That gap is why the gem exists.
 
 ### They compose — you can use both
 
-The pipeline gems above aren't just "not competitors"; you may well use one *alongside*
-`flow_wizard`, because they do different jobs in the same request:
+The pipeline gems above make good partners, not rivals — they do a different job in the
+same request:
 
 - **`flow_wizard` runs the outer loop** — which step the user is on, whether they can go
   back, whether a prerequisite redirects them, where the progress rail sits. It answers
@@ -87,13 +86,10 @@ the errors. Sequencing (this gem) and doing-the-work (that gem) stack cleanly; n
 replaces the other. The [integration guide](docs/INTEGRATION.md) shows where that call
 lands in the loop.
 
-## Install
+## What a flow looks like
 
-```ruby
-gem "flow_wizard"
-```
-
-## Define a flow
+A flow is a builder block — named conditions, then steps that reference them — and it
+renders itself to a diagram:
 
 ```ruby
 flow = FlowWizard::Flow.build do
@@ -110,64 +106,9 @@ flow = FlowWizard::Flow.build do
   step :review, requires: :work_type, rail: :review
   step :done, terminal: true
 end
+
+puts flow.to_mermaid  # the diagram below — renders live in GitHub, PRs, and docs
 ```
-
-`skip_unless: :adding` reads as intent ("show this step only when adding");
-`requires: :work_type` means "if the work type isn't set yet, detour to the step
-that sets it." Both reference **named** conditions, which is what makes the diagram
-below possible — an inline `->(s,c){...}` can be evaluated but not described.
-
-Two more declarations model forks:
-
-- **`branch`** — a set of **mutually-exclusive** steps chosen by one variable. It
-  generates the per-value skip conditions and records the fork so the diagram draws a
-  real branch.
-- **`decision`** — a step that *routes* to several **already-gated**, possibly-shared
-  downstream steps (a fork that doesn't fit `branch`'s one-value-one-exclusive-step
-  shape). Diagram-only: it generates no conditions and changes no navigation.
-
-Both are shown in a full worked flow in
-**[docs/DIAGRAMS.md](docs/DIAGRAMS.md)**.
-
-## Navigate
-
-The navigator methods take your own `state` (any object your conditions understand)
-and an optional `config`:
-
-```ruby
-flow.next_after("files", state, config)   # => "details"  (skips file_meta when no files)
-flow.back_before("details", state, config) # => "files"
-flow.detour_for("details", state, config)  # => "known_type" until work_type is set, else nil
-flow.visible_steps(state, config)          # => the steps to show for this state
-flow.rail(state, config)                   # => [{ key:, icon:, label_key: }, ...] progress rail
-```
-
-`Transition` is the small result object your controller turns into a redirect or a
-re-render:
-
-```ruby
-FlowWizard::Transition.advance("details", notice: "Type selected")
-FlowWizard::Transition.rerender("known_type", alert: "Pick a type")
-```
-
-## Self-documenting diagrams
-
-```ruby
-puts flow.to_mermaid
-```
-
-produces Mermaid source that renders as a live diagram in GitHub, PRs, and docs —
-no image tooling. It reads like the *process*, not the raw step array:
-
-- **Hexagons** are conditional steps, labeled *positively* from the named condition
-  (`when adding`, not the internal double negative `if not_adding`).
-- **Solid edges** are the sequential walk; the **stadium** node is a terminal step.
-- **Dashed labeled edges** are prerequisite *guards*, not routes (`needs work_type`).
-- A declared **`branch`** renders as a real fork — the step before it points to each
-  alternative with a value-labeled edge, and the alternatives converge again.
-
-Every shape, edge, and label — and how each maps to the DSL you wrote — is spelled out
-in **[docs/VOCABULARY.md](docs/VOCABULARY.md)**.
 
 ```mermaid
 flowchart TD
@@ -191,27 +132,41 @@ flowchart TD
   review -. needs work_type .-> known_type
 ```
 
-The **dashed edges are prerequisite guards, not routes** — a step that `requires:`
-something redirects to that prerequisite's `detour:` step if reached without it, so a
-dashed edge can point backward and normally never fires. That, plus a fully worked
-example (a two-fork flow with its diagram and a line-by-line reading of every shape
-and edge), is in **[docs/DIAGRAMS.md](docs/DIAGRAMS.md)**.
+Hexagons are conditional steps (labeled positively — `when adding`), the stadium is the
+end, and the dashed edges are prerequisite *guards* (redirect if a requirement is
+missing), not steps in the walk. Flows can also **fork** — a `branch` or `decision`
+draws real forking paths. [A fully-branching example is in DIAGRAMS.md](docs/DIAGRAMS.md).
 
-## State and Config bases
+## Install
 
-`FlowWizard::State` wraps a plain hash (typically your session bag) — subclass it and
-add typed accessors for your domain's slots; `#extra` is a namespaced bag for
-ad-hoc state, and `#to_h` gives the raw hash back for the session.
-`FlowWizard::Config` holds a swappable `flow` plus whatever settings your app needs;
-feature-flag / host reads live in *your* subclass, keeping the engine host-free.
+```ruby
+gem "flow_wizard"
+```
 
-## Wiring it into an app
+## At a glance
 
-The gem gives you a flow and a navigator; your app supplies the controller, the
-session, and the views. For the full glue — the `State`/`Config` subclasses, the
-controller loop (show / update / back), the session round-trip, and the progress rail
-in a view — see **[docs/INTEGRATION.md](docs/INTEGRATION.md)**. (Shown with a Rails
-controller for concreteness; the gem itself needs no framework.)
+- **Build a flow** as data — name the conditions that gate your steps, list the steps,
+  and declare any forking paths. The whole flow is one readable block. →
+  [Anatomy of a flow](docs/AUTHORING-FLOWS.md#anatomy-of-a-flow)
+- **Navigate** it — ask the flow where to go: the next step, the previous step, whether
+  a step should redirect because a prerequisite isn't met, which steps to show, and the
+  progress rail. Your controller acts on the answers. → [Integration
+  guide](docs/INTEGRATION.md)
+- **Validate** it — catch a mistyped condition or step name at build time instead of
+  silently at runtime. → [Validating a flow](docs/AUTHORING-FLOWS.md#validating-a-flow)
+- **Diagram** it — render the flow's structure to a Mermaid diagram straight from the
+  data, no image tooling. → [Diagrams](docs/DIAGRAMS.md)
+- **Wire it into an app** — hold your wizard's state and settings, and drive the flow
+  from a controller loop. → [Integration guide](docs/INTEGRATION.md)
+
+## Documentation
+
+- **[docs/AUTHORING-FLOWS.md](docs/AUTHORING-FLOWS.md)** — every term: how to build a flow
+  piece by piece, and how to read the diagram it renders.
+- **[docs/DIAGRAMS.md](docs/DIAGRAMS.md)** — a full worked flow, its diagram, and a
+  line-by-line reading of every shape and edge.
+- **[docs/INTEGRATION.md](docs/INTEGRATION.md)** — wiring a flow into an app: the
+  `State`/`Config` subclasses, the controller loop, the session round-trip, the rail.
 
 ## Design notes
 
@@ -221,6 +176,11 @@ controller for concreteness; the gem itself needs no framework.)
   diagrams labeled. Raw lambdas still work as an escape hatch, but only named
   conditions get labeled edges.
 - **Zero runtime dependencies.** The gem loads with `require "flow_wizard"` alone.
+
+## Contributing
+
+`bundle install`, then `bundle exec rake` runs the specs and lint. See
+**[CONTRIBUTING.md](CONTRIBUTING.md)** for the full development setup and conventions.
 
 ## License
 
