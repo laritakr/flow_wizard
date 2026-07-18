@@ -115,6 +115,49 @@ RSpec.describe "FlowWizard::Flow#validate" do
     end
   end
 
+  describe "lambda arity" do
+    # Every flow lambda is called with (state, config); one that can't accept two args
+    # raises ArgumentError mid-navigation. validate catches that at build time. Arity is
+    # introspectable even though the lambda's body is not.
+    def cond(name, predicate)
+      FlowWizard::Condition.new(name: name, predicate: predicate)
+    end
+
+    it "flags a condition lambda that takes fewer than two args" do
+      f = flow([step("a", skip_if: :one_arg), step("done", terminal: true)],
+               conditions: { one_arg: cond(:one_arg, ->(_state) { true }) })
+      expect(f.validate).to include(a_string_matching(/condition :one_arg.*accept \(state, config\).*arity 1/))
+    end
+
+    it "flags a condition lambda that requires more than two args" do
+      f = flow([step("a", skip_if: :three), step("done", terminal: true)],
+               conditions: { three: cond(:three, ->(_s, _c, _d) { true }) })
+      expect(f.validate).to include(a_string_matching(/condition :three.*accept \(state, config\)/))
+    end
+
+    it "accepts a two-arg lambda" do
+      f = flow([step("a", skip_if: :ok), step("done", terminal: true)],
+               conditions: { ok: cond(:ok, ->(_s, _c) { true }) })
+      expect(f.validate).to eq([])
+    end
+
+    it "accepts a variadic lambda that can take two args" do
+      f = flow([step("a", skip_if: :splat), step("done", terminal: true)],
+               conditions: { splat: cond(:splat, ->(*_args) { true }) })
+      expect(f.validate).to eq([])
+    end
+
+    it "flags a raw skip_if lambda on a step with the wrong arity" do
+      f = flow([step("a", skip_if: ->(_state) { true }), step("done", terminal: true)])
+      expect(f.validate).to include(a_string_matching(/step "a".*skip_if.*accept \(state, config\)/))
+    end
+
+    it "flags a raw rail_if lambda on a step with the wrong arity" do
+      f = flow([step("a", rail_key: :p, rail_if: ->(_state) { true }), step("done", terminal: true)])
+      expect(f.validate).to include(a_string_matching(/step "a".*rail_if.*accept \(state, config\)/))
+    end
+  end
+
   describe "validate! (raising variant)" do
     it "raises with all problems joined when invalid" do
       f = flow([step("a", skip_if: :missing)])

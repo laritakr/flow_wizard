@@ -3,14 +3,61 @@
 require "set"
 
 module FlowWizard
-  # Checks a built Flow for structural/referential mistakes the navigator would
-  # otherwise hit silently at runtime: a step referencing a condition or step name that
-  # doesn't exist, a prerequisite with a dangling detour, a flow with no way out. It
-  # reads only assembled data, so it catches typos and stale names at definition time.
+  # Reports flow lambdas that can't be called with (state, config). Arity is
+  # introspectable even though the body is not, so a wrong-arity lambda — which would
+  # otherwise raise ArgumentError mid-navigation — is caught at build time. Covers named
+  # condition predicates and raw skip_if/rail_if lambdas on steps.
+  class LambdaArity
+    def initialize(flow)
+      @flow = flow
+    end
+
+    def problems
+      condition_problems + step_problems
+    end
+
+    private
+
+    attr_reader :flow
+
+    def condition_problems
+      flow.conditions.values.filter_map do |condition|
+        next if callable_with_two?(condition.predicate)
+
+        "condition #{condition.name.inspect}: lambda must accept (state, config) — " \
+          "has arity #{condition.predicate.arity}"
+      end
+    end
+
+    def step_problems
+      flow.steps.flat_map do |step|
+        [[step.skip_if, "skip_if"], [step.rail_if, "rail_if"]].filter_map do |entry, label|
+          next unless entry.respond_to?(:arity) # a Symbol names a condition, checked elsewhere
+          next if callable_with_two?(entry)
+
+          "step #{step.name.inspect}: #{label} lambda must accept (state, config) — " \
+            "has arity #{entry.arity}"
+        end
+      end
+    end
+
+    # True if the lambda can be called with exactly two positional args. A non-negative
+    # arity must be 2; a negative arity -n requires (n-1) args, so it must need at most 2.
+    def callable_with_two?(callable)
+      arity = callable.arity
+      arity >= 0 ? arity == 2 : (-arity - 1) <= 2
+    end
+  end
+
+  # Checks a built Flow for mistakes the navigator would otherwise hit silently at
+  # runtime: a step referencing a condition or step name that doesn't exist, a
+  # prerequisite with a dangling detour, a flow with no way out, or a lambda that can't
+  # take (state, config) (see LambdaArity). It reads only assembled data, so it catches
+  # typos, stale names, and wrong signatures at definition time.
   #
-  # Returns a list of human-readable messages; an empty list means the flow is sound.
-  # Raw-lambda skips/rails are not checkable (they carry no name), so they're left
-  # alone — only *named* references are verified.
+  # Returns a list of human-readable messages; an empty list means the flow is sound. A
+  # raw-lambda skip/rail can't have its *logic* checked (only named conditions are
+  # resolved), but its arity is.
   class Validator
     def initialize(flow)
       @flow = flow
@@ -23,7 +70,8 @@ module FlowWizard
         *step_reference_problems,
         *prerequisite_detour_problems,
         *branch_problems,
-        *decision_problems
+        *decision_problems,
+        *arity_problems
       ]
     end
 
@@ -101,6 +149,11 @@ module FlowWizard
             "#{c[:step].inspect}, which does not exist"
         end
       end
+    end
+
+    # Flow lambdas that can't take (state, config). See LambdaArity.
+    def arity_problems
+      LambdaArity.new(flow).problems
     end
 
     # A decision's from-step and every route target must be real steps.
