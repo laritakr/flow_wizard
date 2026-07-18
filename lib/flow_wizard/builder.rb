@@ -27,6 +27,7 @@ module FlowWizard
     def initialize
       @conditions = {}
       @branches = []
+      @decisions = []
       @step_options = {}
       @steps = []
       @rail_keys = nil
@@ -35,7 +36,8 @@ module FlowWizard
     def build(&block)
       instance_eval(&block) if block
       apply_branches
-      Flow.new(@steps, rail_keys: @rail_keys, conditions: @conditions, branches: @branches)
+      Flow.new(@steps, rail_keys: @rail_keys, conditions: @conditions,
+                       branches: @branches, decisions: @decisions)
     end
 
     # A named predicate over (state, config), referenced by skip_unless/skip_if/rail_if.
@@ -69,6 +71,19 @@ module FlowWizard
         { value: value.to_s, step: step_name.to_s, condition: cond_name }
       end
       @branches << { variable: variable.to_sym, cases: cases }
+    end
+
+    # A diagram-only routing fork: the +from+ step fans out on +variable+ to the
+    # mapped steps, which are ALREADY gated by their own skips and may be shared or
+    # convergent (so they don't fit `branch`'s one-value-one-exclusive-step shape).
+    # Records nothing but the fork for the diagram — generates no conditions and
+    # changes no navigation.
+    #
+    #   decision :path, from: :start,
+    #            add: :select_parent, standalone: :item_start, new: :files
+    def decision(variable, from:, **value_to_step)
+      cases = value_to_step.map { |value, to| { value: value.to_s, to: to.to_s } }
+      @decisions << { variable: variable.to_sym, from: from.to_s, cases: cases }
     end
 
     # Override the rail phase order (defaults to the order steps introduce rail keys).

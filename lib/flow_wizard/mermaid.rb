@@ -19,9 +19,10 @@ module FlowWizard
   class MermaidNodes
     include MermaidId
 
-    def initialize(flow, branch_by_step)
+    def initialize(flow, branch_by_step, decision_from)
       @flow = flow
       @branch_by_step = branch_by_step
+      @decision_from = decision_from
     end
 
     def lines
@@ -30,13 +31,13 @@ module FlowWizard
 
     private
 
-    attr_reader :flow, :branch_by_step
+    attr_reader :flow, :branch_by_step, :decision_from
 
     def node(step)
       label = %("#{node_label(step)}")
       if step.terminal?
         "#{id(step.name)}([#{label}])"
-      elsif conditional_label(step)
+      elsif fork_label(step)
         "#{id(step.name)}{{#{label}}}"
       else
         "#{id(step.name)}[#{label}]"
@@ -44,8 +45,17 @@ module FlowWizard
     end
 
     def node_label(step)
-      cond = conditional_label(step)
-      cond ? "#{step.name}<br/>#{cond}" : step.name
+      fork = fork_label(step)
+      fork ? "#{step.name}<br/>#{fork}" : step.name
+    end
+
+    # The hexagon annotation for a fork step: the decision variable it routes on, or
+    # its positive skip condition, or nil for a plain step.
+    def fork_label(step)
+      variable = decision_from[step.name]
+      return "(#{variable}?)" if variable
+
+      conditional_label(step)
     end
 
     # A positive, readable condition phrase for a conditional step, or nil.
@@ -79,11 +89,12 @@ module FlowWizard
     def initialize(flow)
       @flow = flow
       @branch_by_step = index_branch_steps
+      @decision_by_from = flow.decisions.each_with_object({}) { |d, map| map[d[:from]] = d }
     end
 
     def render(direction: "TD")
       lines = ["flowchart #{direction}"]
-      lines.concat(MermaidNodes.new(flow, branch_by_step).lines)
+      lines.concat(MermaidNodes.new(flow, branch_by_step, decision_from).lines)
       lines.concat(edge_lines)
       lines.concat(prerequisite_edge_lines)
       lines.join("\n")
@@ -91,13 +102,18 @@ module FlowWizard
 
     private
 
-    attr_reader :flow, :branch_by_step
+    attr_reader :flow, :branch_by_step, :decision_by_from
 
     # step name => the branch it participates in (as a case), for edge routing.
     def index_branch_steps
       flow.branches.each_with_object({}) do |branch, map|
         branch[:cases].each { |c| map[c[:step]] = branch }
       end
+    end
+
+    # from-step name => the decision's routing variable, for the node's hexagon label.
+    def decision_from
+      decision_by_from.transform_values { |d| d[:variable] }
     end
 
     # The forward walk, rerouted around branches so alternatives fork and converge
@@ -112,12 +128,25 @@ module FlowWizard
           edges.concat(branch_edges(spine, index, branch))
           index += branch[:cases].length + 1 # skip the fork step + its case steps
         else
-          edges.concat(linear_edge(spine, index))
+          edges.concat(step_out_edges(spine, index))
           index += 1
         end
       end
       edges.concat(terminal_edges(spine.last))
       edges
+    end
+
+    # Edges leaving the step at +index+: a decision fans out to its routes; otherwise
+    # a single linear edge to the successor.
+    def step_out_edges(spine, index)
+      decision = decision_by_from[spine[index].name]
+      decision ? decision_edges(spine[index], decision) : linear_edge(spine, index)
+    end
+
+    # from -->|value| target, for each decision route. The targets keep their own
+    # linear/prerequisite edges (they are ordinary steps), so convergence renders.
+    def decision_edges(from, decision)
+      decision[:cases].map { |c| "  #{id(from.name)} -->|#{c[:value]}| #{id(c[:to])}" }
     end
 
     # The single forward edge from the step at +index+ to its successor, unless the

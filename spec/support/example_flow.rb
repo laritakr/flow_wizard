@@ -49,3 +49,22 @@ def branching_flow
     step :done, terminal: true
   end
 end
+
+# A flow with a declared `decision` — the `start` step routes on `path` to already-
+# gated, partly-shared downstream steps (add -> parent, standalone -> item, new ->
+# straight to files), which reconverge. Exercises draw-only fork edges + convergence.
+def routing_flow
+  FlowWizard::Flow.build do
+    condition :adding, ->(s, _c) { s.path == "add" }
+    condition :on_new, ->(s, _c) { s.path == "new" }
+    decision :path, from: :start,
+                    add: :select_parent, standalone: :item_start, new: :files
+
+    step :start, rail: :type
+    step :select_parent, skip_unless: :adding, rail: :parent
+    step :item_start, skip_if: :on_new, rail: :type
+    step :files, rail: :upload
+    step :details, rail: :detail
+    step :done, terminal: true
+  end
+end

@@ -14,7 +14,7 @@ module FlowWizard
   # Build a Flow directly (`Flow.new(steps, conditions:)`) or via the DSL
   # (`Flow.build { ... }`, see Builder).
   class Flow
-    attr_reader :steps, :rail_keys, :conditions, :branches
+    attr_reader :steps, :rail_keys, :conditions, :branches, :decisions
 
     # @param steps [Array<Step>] the ordered step list.
     # @param rail_keys [Array<Symbol>] progress-rail phase order (its OWN order, so
@@ -23,10 +23,15 @@ module FlowWizard
     # @param conditions [Hash{Symbol=>Condition}] the named-condition registry.
     # @param branches [Array<Hash>] declared mutually-exclusive branches, for the
     #   diagram to render as forks: [{ variable:, cases: [{ value:, step:, condition: }] }].
-    def initialize(steps, rail_keys: nil, conditions: {}, branches: [])
+    # @param decisions [Array<Hash>] declared diagram-only routing forks (a step that
+    #   fans out to already-gated, possibly-shared downstream steps), for the diagram:
+    #   [{ variable:, from:, cases: [{ value:, to: }] }]. Unlike a branch, a decision
+    #   generates no conditions — the target steps carry their own skips.
+    def initialize(steps, rail_keys: nil, conditions: {}, branches: [], decisions: [])
       @steps = steps
       @conditions = conditions
       @branches = branches
+      @decisions = decisions
       @rail_keys = rail_keys || default_rail_keys
     end
 

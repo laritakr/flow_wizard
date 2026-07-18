@@ -49,11 +49,21 @@ below possible — an inline `->(s,c){...}` can be evaluated but not described.
 
 For a set of **mutually-exclusive** steps chosen by one decision variable, declare a
 `branch`. It generates the per-value skip conditions and records the fork so the
-diagram draws it as a real branch (see the last diagram below):
+diagram draws it as a real branch (see the diagrams below):
 
 ```ruby
 branch :type_mode, on: ->(state, _config) { state.type_mode },
        known: :known_type, guided: :guided_confirm
+```
+
+When a step *routes* to several **already-gated** downstream steps that may be shared
+or convergent — a fork that doesn't fit `branch`'s one-value-one-exclusive-step shape
+— declare a `decision`. It records the fork for the diagram only: it generates no
+conditions and changes no navigation (the target steps keep their own skips).
+
+```ruby
+decision :path, from: :start,
+         add: :select_parent, standalone: :item_start, new: :files
 ```
 
 ## Navigate
@@ -143,21 +153,24 @@ flowchart TD
   review -. needs work_type .-> known_type
 ```
 
-A branching flow reads just as clearly. Here a `branch` on `type_mode` forks into two
-ways to pick a work type — `known` (go straight to the type list) vs a file-driven
-`guided` step — declared as:
+A fully forked flow reads just as clearly. Two forks and a convergence: a `decision`
+on `path` routes the `start` screen to three intents (add / standalone / new), which
+reconverge at `files`; then a `branch` on `type_mode` forks into two ways to pick a
+work type — `known` (go straight to the type list) vs a file-driven `guided` step:
 
 ```ruby
+decision :path, from: :start,
+         add: :select_parent, standalone: :item_start, new: :files
 branch :type_mode, on: ->(state, _config) { state.type_mode },
        known: :known_type, guided: :guided_confirm
 ```
 
-`files` forks to each alternative, labeled by the value that selects it, and both
-converge on `details` — no misleading straight line through the two exclusive steps:
+Each fork's edges are labeled by the value that selects them, and the paths converge
+again — no misleading straight line through steps that are really siblings:
 
 ```mermaid
 flowchart TD
-  start["start"]
+  start{{"start<br/>(path?)"}}
   select_parent{{"select_parent<br/>(when adding)"}}
   item_start{{"item_start<br/>(unless on_new)"}}
   files["files"]
@@ -167,7 +180,9 @@ flowchart TD
   file_meta{{"file_meta<br/>(when has_files)"}}
   review["review"]
   done(["done"])
-  start --> select_parent
+  start -->|add| select_parent
+  start -->|standalone| item_start
+  start -->|new| files
   select_parent --> item_start
   item_start --> files
   files -->|known| known_type

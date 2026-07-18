@@ -97,4 +97,33 @@ RSpec.describe FlowWizard::Mermaid do
       expect(diagram).to include('guided_confirm["guided_confirm"]')
     end
   end
+
+  describe "a declared decision" do
+    subject(:diagram) { routing_flow.to_mermaid }
+
+    it "renders the from-step as a hexagon labeled with the routing variable" do
+      expect(diagram).to include('start{{"start<br/>(path?)"}}')
+    end
+
+    it "fans out from the from-step to each route, labeled by value" do
+      expect(diagram).to include("start -->|add| select_parent")
+      expect(diagram).to include("start -->|standalone| item_start")
+      expect(diagram).to include("start -->|new| files")
+    end
+
+    it "suppresses the plain linear edge out of the from-step" do
+      expect(diagram).not_to include("start --> select_parent")
+    end
+
+    it "keeps the convergence edges among the routed steps" do
+      # add flows through select_parent, then both add and standalone meet at
+      # item_start, then all three meet at files.
+      expect(diagram).to include("select_parent --> item_start")
+      expect(diagram).to include("item_start --> files")
+    end
+
+    it "generates no routing conditions (the target steps carry their own skips)" do
+      expect(routing_flow.conditions.keys).not_to include(:path_is_add, :path_is_new)
+    end
+  end
 end
