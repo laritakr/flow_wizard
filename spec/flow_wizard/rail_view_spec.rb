@@ -68,4 +68,41 @@ RSpec.describe "FlowWizard::Flow#rail_view" do
     type_row = rows.find { |p| p[:key] == :type }
     expect(type_row[:status]).to eq(:current)
   end
+
+  describe "current_key: (locate the current phase by rail key)" do
+    let(:state) { ExampleState.new(path: "add", work_type: "Book", uploaded_file_ids: ["f"]) }
+
+    it "marks the phase with that key :current, earlier :done, later :upcoming" do
+      rows = flow.rail_view(state, {}, current_key: :detail)
+      by_key = rows.to_h { |p| [p[:key], p[:status]] }
+      expect(by_key[:type]).to eq(:done)
+      expect(by_key[:detail]).to eq(:current)
+      expect(by_key[:review]).to eq(:upcoming)
+    end
+
+    it "is equivalent to passing a step name that maps to the same key" do
+      by_step = flow.rail_view(state, {}, current_step: "details")
+      by_key  = flow.rail_view(state, {}, current_key: :detail)
+      expect(by_key).to eq(by_step)
+    end
+
+    it "marks nothing current when the key isn't in the visible rail" do
+      non_adding = ExampleState.new(path: "standalone", work_type: "Book", uploaded_file_ids: ["f"])
+      rows = flow.rail_view(non_adding, {}, current_key: :parent) # :parent phase hidden
+      expect(rows.map { |p| p[:status] }).not_to include(:current)
+    end
+  end
+
+  describe "argument guard" do
+    let(:state) { ExampleState.new(path: "add") }
+
+    it "raises when neither current_step nor current_key is given" do
+      expect { flow.rail_view(state, {}) }.to raise_error(ArgumentError, /current_step or current_key/)
+    end
+
+    it "raises when both are given" do
+      expect { flow.rail_view(state, {}, current_step: "details", current_key: :detail) }
+        .to raise_error(ArgumentError, /current_step or current_key/)
+    end
+  end
 end

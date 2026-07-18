@@ -134,16 +134,24 @@ module FlowWizard
     end
 
     # #rail enriched for rendering: each phase gains a 1-based +:position+ and a
-    # +:status+ of :done / :current / :upcoming, relative to +current_step+ (a step
-    # name — the step the user is on). The host view can render a progress strip
-    # straight from this without recomputing where the user sits.
+    # +:status+ of :done / :current / :upcoming, relative to where the user is. The host
+    # view can render a progress strip straight from this without recomputing position.
     #
-    # If +current_step+'s phase isn't in the visible rail (it's skipped in this state),
-    # no phase is marked :current and all are :upcoming.
-    def rail_view(state, config, current_step:)
+    # Say where the user is with exactly ONE of:
+    # - +current_step+: the step name the user is on (resolved to its rail phase), or
+    # - +current_key+:  the rail phase key directly (handy when the view already knows
+    #   its phase — several steps can share one phase key).
+    #
+    # If that phase isn't in the visible rail (skipped in this state), no phase is marked
+    # :current and all are :upcoming.
+    def rail_view(state, config, current_step: nil, current_key: nil)
+      unless [current_step, current_key].compact.one?
+        raise ArgumentError, "rail_view: pass exactly one of current_step or current_key"
+      end
+
       phases = rail(state, config)
-      current_key = step(current_step)&.rail_key
-      current_index = phases.index { |p| p[:key] == current_key }
+      key = current_key || step(current_step)&.rail_key
+      current_index = phases.index { |p| p[:key] == key }
 
       phases.each_with_index.map do |phase, i|
         phase.merge(position: i + 1, status: phase_status(i, current_index))

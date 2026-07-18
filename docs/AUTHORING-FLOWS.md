@@ -284,8 +284,10 @@ relevant partway through).
 `flow.rail(state, config)` returns the phases to render; `flow.rail_view(state, config,
 current_step:)` returns them enriched with a `:status` (`:done` / `:current` /
 `:upcoming`) and 1-based `:position`, so a view can style the strip without recomputing
-where the user is. None of this is in the flowchart — see
-[INTEGRATION.md](INTEGRATION.md#5-the-progress-rail) for rendering it.
+where the user is. Say where the user is with either `current_step:` (a step name) or
+`current_key:` (a rail phase key — handy when the view already knows its phase). None of
+this is in the flowchart — see [INTEGRATION.md](INTEGRATION.md#5-the-progress-rail) for
+rendering it.
 
 ## The builder verbs
 
