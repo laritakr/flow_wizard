@@ -101,6 +101,64 @@ flowchart TD
   review -. needs work_type .-> known_type
 ```
 
+Because the flow is data, a consuming app can add steps and conditions without
+changing any of the navigation — and the diagram grows with it. Adding an
+`item_start` chooser (shown only when a guided sub-flow is offered) reads clearly:
+
+```mermaid
+flowchart TD
+  start["start"]
+  select_parent{{"select_parent<br/>(if not_adding)"}}
+  item_start{{"item_start<br/>(if not_guided_offered)"}}
+  known_type["known_type"]
+  files["files"]
+  details["details"]
+  file_meta{{"file_meta<br/>(if not_has_files)"}}
+  review["review"]
+  done(["done"])
+  start --> select_parent
+  select_parent --> item_start
+  item_start --> known_type
+  known_type --> files
+  files --> details
+  details --> file_meta
+  file_meta --> review
+  review --> done
+  details -. needs work_type .-> known_type
+  file_meta -. needs work_type .-> known_type
+  review -. needs work_type .-> known_type
+```
+
+A fully branching flow reads just as clearly — here three entry intents
+(new / add / standalone) and two ways to pick a type (`known` vs a file-driven
+`guided` step), all expressed as named conditions:
+
+```mermaid
+flowchart TD
+  start["start"]
+  select_parent{{"select_parent<br/>(if not_adding)"}}
+  item_start{{"item_start<br/>(if on_new)"}}
+  files["files"]
+  known_type{{"known_type<br/>(if not_mode_known)"}}
+  guided_confirm{{"guided_confirm<br/>(if not_mode_guided)"}}
+  details["details"]
+  file_meta{{"file_meta<br/>(if not_has_files)"}}
+  review["review"]
+  done(["done"])
+  start --> select_parent
+  select_parent --> item_start
+  item_start --> files
+  files --> known_type
+  known_type --> guided_confirm
+  guided_confirm --> details
+  details --> file_meta
+  file_meta --> review
+  review --> done
+  details -. needs work_type .-> known_type
+  file_meta -. needs work_type .-> known_type
+  review -. needs work_type .-> known_type
+```
+
 ## State and Config bases
 
 `FlowWizard::State` wraps a plain hash (typically your session bag) — subclass it and
