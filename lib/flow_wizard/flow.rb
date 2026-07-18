@@ -14,16 +14,19 @@ module FlowWizard
   # Build a Flow directly (`Flow.new(steps, conditions:)`) or via the DSL
   # (`Flow.build { ... }`, see Builder).
   class Flow
-    attr_reader :steps, :rail_keys, :conditions
+    attr_reader :steps, :rail_keys, :conditions, :branches
 
     # @param steps [Array<Step>] the ordered step list.
     # @param rail_keys [Array<Symbol>] progress-rail phase order (its OWN order, so
     #   several steps can collapse into one phase and phases can differ from walk
     #   order). Defaults to the distinct rail_keys in step order.
     # @param conditions [Hash{Symbol=>Condition}] the named-condition registry.
-    def initialize(steps, rail_keys: nil, conditions: {})
+    # @param branches [Array<Hash>] declared mutually-exclusive branches, for the
+    #   diagram to render as forks: [{ variable:, cases: [{ value:, step:, condition: }] }].
+    def initialize(steps, rail_keys: nil, conditions: {}, branches: [])
       @steps = steps
       @conditions = conditions
+      @branches = branches
       @rail_keys = rail_keys || default_rail_keys
     end
 

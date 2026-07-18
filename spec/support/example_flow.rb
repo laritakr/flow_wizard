@@ -31,3 +31,21 @@ def example_flow
     step :done, terminal: true
   end
 end
+
+# A flow with a declared `branch` — one decision variable (`type_mode`) forking into
+# two mutually-exclusive steps — so the diagram specs can exercise real fork edges,
+# not just the linear spine.
+BranchState = Struct.new(:type_mode, keyword_init: true)
+
+def branching_flow
+  FlowWizard::Flow.build do
+    branch :type_mode, on: ->(s, _c) { s.type_mode },
+                       known: :known_type, guided: :guided_confirm
+
+    step :start, rail: :type
+    step :known_type, rail: :type
+    step :guided_confirm, rail: :type
+    step :details, rail: :detail
+    step :done, terminal: true
+  end
+end

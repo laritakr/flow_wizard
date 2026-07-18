@@ -47,6 +47,15 @@ end
 that sets it." Both reference **named** conditions, which is what makes the diagram
 below possible — an inline `->(s,c){...}` can be evaluated but not described.
 
+For a set of **mutually-exclusive** steps chosen by one decision variable, declare a
+`branch`. It generates the per-value skip conditions and records the fork so the
+diagram draws it as a real branch (see the last diagram below):
+
+```ruby
+branch :type_mode, on: ->(state, _config) { state.type_mode },
+       known: :known_type, guided: :guided_confirm
+```
+
 ## Navigate
 
 The navigator methods take your own `state` (any object your conditions understand)
@@ -75,18 +84,23 @@ puts flow.to_mermaid
 ```
 
 produces Mermaid source that renders as a live diagram in GitHub, PRs, and docs —
-no image tooling. Solid edges are the sequential walk; **dashed labeled edges** are
-prerequisite detours; **hexagons** are conditional steps (annotated with the
-condition name); the **stadium** node is a terminal step:
+no image tooling. It reads like the *process*, not the raw step array:
+
+- **Hexagons** are conditional steps, labeled *positively* from the named condition
+  (`when adding`, not the internal double negative `if not_adding`).
+- **Solid edges** are the sequential walk; the **stadium** node is a terminal step.
+- **Dashed labeled edges** are prerequisite detours (`needs work_type`).
+- A declared **`branch`** renders as a real fork — the step before it points to each
+  alternative with a value-labeled edge, and the alternatives converge again.
 
 ```mermaid
 flowchart TD
   start["start"]
-  select_parent{{"select_parent<br/>(if not_adding)"}}
+  select_parent{{"select_parent<br/>(when adding)"}}
   known_type["known_type"]
   files["files"]
   details["details"]
-  file_meta{{"file_meta<br/>(if not_has_files)"}}
+  file_meta{{"file_meta<br/>(when has_files)"}}
   review["review"]
   done(["done"])
   start --> select_parent
@@ -108,12 +122,12 @@ changing any of the navigation — and the diagram grows with it. Adding an
 ```mermaid
 flowchart TD
   start["start"]
-  select_parent{{"select_parent<br/>(if not_adding)"}}
-  item_start{{"item_start<br/>(if not_guided_offered)"}}
+  select_parent{{"select_parent<br/>(when adding)"}}
+  item_start{{"item_start<br/>(when guided_offered)"}}
   known_type["known_type"]
   files["files"]
   details["details"]
-  file_meta{{"file_meta<br/>(if not_has_files)"}}
+  file_meta{{"file_meta<br/>(when has_files)"}}
   review["review"]
   done(["done"])
   start --> select_parent
@@ -129,27 +143,36 @@ flowchart TD
   review -. needs work_type .-> known_type
 ```
 
-A fully branching flow reads just as clearly — here three entry intents
-(new / add / standalone) and two ways to pick a type (`known` vs a file-driven
-`guided` step), all expressed as named conditions:
+A branching flow reads just as clearly. Here a `branch` on `type_mode` forks into two
+ways to pick a work type — `known` (go straight to the type list) vs a file-driven
+`guided` step — declared as:
+
+```ruby
+branch :type_mode, on: ->(state, _config) { state.type_mode },
+       known: :known_type, guided: :guided_confirm
+```
+
+`files` forks to each alternative, labeled by the value that selects it, and both
+converge on `details` — no misleading straight line through the two exclusive steps:
 
 ```mermaid
 flowchart TD
   start["start"]
-  select_parent{{"select_parent<br/>(if not_adding)"}}
-  item_start{{"item_start<br/>(if on_new)"}}
+  select_parent{{"select_parent<br/>(when adding)"}}
+  item_start{{"item_start<br/>(unless on_new)"}}
   files["files"]
-  known_type{{"known_type<br/>(if not_mode_known)"}}
-  guided_confirm{{"guided_confirm<br/>(if not_mode_guided)"}}
+  known_type["known_type"]
+  guided_confirm["guided_confirm"]
   details["details"]
-  file_meta{{"file_meta<br/>(if not_has_files)"}}
+  file_meta{{"file_meta<br/>(when has_files)"}}
   review["review"]
   done(["done"])
   start --> select_parent
   select_parent --> item_start
   item_start --> files
-  files --> known_type
-  known_type --> guided_confirm
+  files -->|known| known_type
+  known_type --> details
+  files -->|guided| guided_confirm
   guided_confirm --> details
   details --> file_meta
   file_meta --> review

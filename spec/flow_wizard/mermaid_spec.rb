@@ -19,11 +19,12 @@ RSpec.describe FlowWizard::Mermaid do
     expect(diagram).to include('done(["done"])')
   end
 
-  it "marks a conditional step as a hexagon labeled with its condition" do
-    # select_parent is skip_unless: :adding, registered as the inverse not_adding.
+  it "marks a conditional step as a hexagon labeled with a positive condition" do
+    # select_parent is skip_unless: :adding, so it shows *when adding* — the label
+    # reads positively, not as the internal double negative "if not_adding".
     # Labels are quoted so the parens/<br/> parse in Mermaid.
-    expect(diagram).to include('select_parent{{"select_parent<br/>(if not_adding)"}}')
-    expect(diagram).to include('file_meta{{"file_meta<br/>(if not_has_files)"}}')
+    expect(diagram).to include('select_parent{{"select_parent<br/>(when adding)"}}')
+    expect(diagram).to include('file_meta{{"file_meta<br/>(when has_files)"}}')
   end
 
   it "links the sequential spine with solid edges" do
@@ -54,11 +55,11 @@ RSpec.describe FlowWizard::Mermaid do
     expect(diagram).to eq(<<~MERMAID.chomp)
       flowchart TD
         start["start"]
-        select_parent{{"select_parent<br/>(if not_adding)"}}
+        select_parent{{"select_parent<br/>(when adding)"}}
         known_type["known_type"]
         files["files"]
         details["details"]
-        file_meta{{"file_meta<br/>(if not_has_files)"}}
+        file_meta{{"file_meta<br/>(when has_files)"}}
         review["review"]
         done(["done"])
         start --> select_parent
@@ -72,5 +73,28 @@ RSpec.describe FlowWizard::Mermaid do
         file_meta -. needs work_type .-> known_type
         review -. needs work_type .-> known_type
     MERMAID
+  end
+
+  describe "a declared branch" do
+    subject(:diagram) { branching_flow.to_mermaid }
+
+    it "forks from the step before the branch to each alternative, labeled by value" do
+      expect(diagram).to include("start -->|known| known_type")
+      expect(diagram).to include("start -->|guided| guided_confirm")
+    end
+
+    it "converges every alternative on the step after the branch" do
+      expect(diagram).to include("known_type --> details")
+      expect(diagram).to include("guided_confirm --> details")
+    end
+
+    it "draws no misleading sequential edge between the mutually-exclusive steps" do
+      expect(diagram).not_to include("known_type --> guided_confirm")
+    end
+
+    it "leaves branch-case steps as plain nodes (the fork edge carries the condition)" do
+      expect(diagram).to include('known_type["known_type"]')
+      expect(diagram).to include('guided_confirm["guided_confirm"]')
+    end
   end
 end
