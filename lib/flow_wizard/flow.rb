@@ -35,10 +35,34 @@ module FlowWizard
       @rail_keys = rail_keys || default_rail_keys
     end
 
+    # Raised by #validate! when a flow has structural/referential problems.
+    class InvalidFlow < StandardError; end
+
     # @return [Flow] built from the DSL (see Builder).
     def self.build(&block)
       require "flow_wizard/builder"
       Builder.new.build(&block)
+    end
+
+    # Structural/referential problems with this flow (see Validator), as a list of
+    # human-readable messages. An empty list means the flow is sound. Cheap enough to
+    # call in a test or a boot-time check.
+    def validate
+      require "flow_wizard/validator"
+      Validator.new(self).problems
+    end
+
+    def valid?
+      validate.empty?
+    end
+
+    # Like #validate but raises InvalidFlow (with every problem) unless the flow is
+    # sound; returns the flow when it is, so it chains: `flow = Flow.build { ... }.validate!`.
+    def validate!
+      problems = validate
+      raise InvalidFlow, problems.join("; ") unless problems.empty?
+
+      self
     end
 
     def names
@@ -109,6 +133,23 @@ module FlowWizard
       end
     end
 
+    # #rail enriched for rendering: each phase gains a 1-based +:position+ and a
+    # +:status+ of :done / :current / :upcoming, relative to +current_step+ (a step
+    # name — the step the user is on). The host view can render a progress strip
+    # straight from this without recomputing where the user sits.
+    #
+    # If +current_step+'s phase isn't in the visible rail (it's skipped in this state),
+    # no phase is marked :current and all are :upcoming.
+    def rail_view(state, config, current_step:)
+      phases = rail(state, config)
+      current_key = step(current_step)&.rail_key
+      current_index = phases.index { |p| p[:key] == current_key }
+
+      phases.each_with_index.map do |phase, i|
+        phase.merge(position: i + 1, status: phase_status(i, current_index))
+      end
+    end
+
     # A Mermaid flowchart of this flow's structure. See Mermaid.
     def to_mermaid(**options)
       require "flow_wizard/mermaid"
@@ -116,6 +157,20 @@ module FlowWizard
     end
 
     private
+
+    # :done before the current phase, :current at it, :upcoming after. With no current
+    # phase in the rail (current_index nil), everything is :upcoming.
+    def phase_status(index, current_index)
+      return :upcoming if current_index.nil?
+
+      if index < current_index
+        :done
+      elsif index == current_index
+        :current
+      else
+        :upcoming
+      end
+    end
 
     # Distinct rail_keys in the order steps first introduce them.
     def default_rail_keys
