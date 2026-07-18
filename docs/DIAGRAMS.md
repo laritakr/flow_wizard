@@ -6,7 +6,8 @@ GitHub markdown, a PR description, or docs — no image tooling. This page walks
 line-by-line reading of every shape and edge.
 
 The [README](../README.md#self-documenting-diagrams) covers the basics and shows a
-simple flow. Start there if you just want the shape of the output.
+simple flow. Start there if you just want the shape of the output. For a term-by-term
+reference of every shape, edge, and label, see [VOCABULARY.md](VOCABULARY.md).
 
 ## The flow
 

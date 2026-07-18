@@ -9,13 +9,83 @@ Mermaid diagram).
 Your app *queries* the flow — the gem never takes over your controller, and it
 assumes nothing about your models or storage.
 
-## Why not wicked / a state machine / trailblazer?
+**Why model a wizard this way?** Because it makes the navigation *data* instead of
+imperative controller logic, which buys three things:
 
-Those either take over the controller (you can't swap the step list as data),
-model states-and-transitions rather than an ordered walk with skips and detours, or
-execute a service pipeline within one request rather than spanning the request
-cycle. `flow_wizard` occupies the gap: **request-spanning UI navigation, modeled as
-swappable data, with prerequisite-detours and a collapsing progress rail.**
+- **Reconfigurable in one place.** A downstream app reshapes the wizard by assigning a
+  new `config.flow` — the code that walks it never changes. (This gem was extracted so
+  two apps could share one navigator and each swap the step list.)
+- **Testable as a plain object.** The whole flow — every route, skip, detour, and rail
+  phase — is exercised as a PORO, with no controller, request, or session in the loop.
+- **Trustworthy self-documentation.** The diagram is accurate *because* the branching
+  is declarative data a renderer can read — unlike branching buried in controller
+  `if`s, which no diagram can follow.
+
+The implementation is deliberately small; the point is the shape, not the line count.
+For a genuinely linear form that will never branch, skip, or be reused, plain
+controller actions are simpler — reach for this once there's real branching, a
+prerequisite guard, a progress rail, or a second consumer.
+
+## How is this different from existing gems?
+
+We surveyed the Ruby/Rails ecosystem before writing this. Existing tools split into
+two camps, and neither does what `flow_wizard` does — because the requirement that
+matters most eliminates almost everything:
+
+> **Steps are declarative runtime *data*.** A downstream app reorders, inserts, or
+> removes steps by assigning `config.flow = Flow.new([...])` — no controller
+> subclassing, no one-model-per-step assumption, no editing the wizard's logic.
+
+### UI wizard gems — right domain, wrong architecture
+
+**wicked**, **DfE::Wizard**, and the `form_wizard` / GOV.UK family live in the right
+place (multi-step forms) but **take over the controller**. In wicked, `include
+Wicked::Wizard` makes the controller *be* the wizard; the step list is
+`steps :a, :b, …` in the controller class, not data an app can swap. A downstream app
+customizes by overriding the controller — heavier and more fragile than assigning a
+config value. Skips scatter into the `show` case, and there's no first-class
+detour/prerequisite and no phase-collapsing progress rail. (DfE::Wizard is the closest
+philosophically — standalone step classes, no controller takeover — but its flow is
+still defined in code rather than as swappable data, which is the distinction that
+matters here.)
+
+### Flow / pipeline / state-machine gems — right philosophy, wrong domain
+
+**trailblazer-activity**, **dry-transaction/operation**, and the state machines
+(**aasm**, **state_machines**, **statesman**, **workflow**) are libraries you query
+rather than frameworks that own the controller — the right philosophy. But they model
+the wrong thing: a **service-execution pipeline** that runs and returns a result within
+one request (trailblazer, dry-rb), or **states-and-transitions** (the state machines).
+Neither models *request-spanning UI navigation* — back/forward across the request
+cycle, skip, detour-to-a-prerequisite, or a progress rail. A linear-wizard-with-skips
+isn't naturally a state machine, and their step lists are class-DSL, not data.
+
+### The empty intersection
+
+`flow_wizard` sits where nothing else does: **request-spanning UI navigation, modeled
+as swappable data, decoupled from the controller, with prerequisite-detours and a
+phase-collapsing progress rail.** UI gems own the controller; pipeline gems don't span
+requests. That gap is why the gem exists.
+
+### They compose — you can use both
+
+The pipeline gems above aren't just "not competitors"; you may well use one *alongside*
+`flow_wizard`, because they do different jobs in the same request:
+
+- **`flow_wizard` runs the outer loop** — which step the user is on, whether they can go
+  back, whether a prerequisite redirects them, where the progress rail sits. It answers
+  *"where next?"* and never does a step's actual work.
+- **A step's submit often has to *do something*** — save a record, enqueue a job,
+  validate against a service — and that work can succeed or fail. `flow_wizard` has no
+  opinion on it. That is where a service object, **trailblazer-activity**, or
+  **dry-monads** does the job.
+
+They meet in the step's controller action: `flow_wizard` tells you the user is on
+`review`, your action runs the operation that saves the work, and its success/failure
+becomes the `Transition` you hand back — `advance` to the next step, or `rerender` with
+the errors. Sequencing (this gem) and doing-the-work (that gem) stack cleanly; neither
+replaces the other. The [integration guide](docs/INTEGRATION.md) shows where that call
+lands in the loop.
 
 ## Install
 
@@ -95,6 +165,9 @@ no image tooling. It reads like the *process*, not the raw step array:
 - **Dashed labeled edges** are prerequisite *guards*, not routes (`needs work_type`).
 - A declared **`branch`** renders as a real fork — the step before it points to each
   alternative with a value-labeled edge, and the alternatives converge again.
+
+Every shape, edge, and label — and how each maps to the DSL you wrote — is spelled out
+in **[docs/VOCABULARY.md](docs/VOCABULARY.md)**.
 
 ```mermaid
 flowchart TD
