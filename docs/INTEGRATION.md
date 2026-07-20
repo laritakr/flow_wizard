@@ -208,9 +208,10 @@ enriched for rendering — each also carries a `:position` (1-based) and a `:sta
 ```
 
 The `:status` class (`is-done` / `is-current` / `is-upcoming`) is the hook your CSS
-styles — filled vs. outlined circles, an active label, a dimmed upcoming step, as in
-the image above. `flow_wizard` computes the *state*; the look is entirely yours (the
-gem ships no CSS or markup — it stays dependency-free). A minimal starting point:
+styles — filled vs. outlined circles, an active label, a dimmed upcoming step (see the
+[rail illustration in AUTHORING-FLOWS.md](AUTHORING-FLOWS.md#the-rail--the-progress-indicator)).
+`flow_wizard` computes the *state*; the look is entirely yours (the gem ships no CSS or
+markup — it stays dependency-free). A minimal starting point:
 
 ```css
 .wizard-rail { display: flex; gap: 1rem; list-style: none; }
